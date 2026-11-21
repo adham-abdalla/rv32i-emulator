@@ -1,0 +1,4 @@
+fib.elf|fib(50) mod 2^32 = 3996334433
+fib.elf|fib_rec(20) = 6765
+sort.elf|min -99906 max 97390 sorted yes checksum 0xfffec420
+primes.elf|primes <= 10000: 1229, largest 9973

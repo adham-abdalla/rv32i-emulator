@@ -1,0 +1,43 @@
+name: Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (clang + lld for the RV32I cross-compile)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld
+          clang --version | head -1
+      - name: Directed ISA tests under AddressSanitizer + UBSan
+        run: make test SANITIZE="-fsanitize=address,undefined -fno-omit-frame-pointer"
+      - name: Build emulator (release flags) and cross-compiled C programs
+        run: make clean && make all programs
+      - name: Run C programs and compare output
+        run: make run-programs
+      - name: Random co-simulation against the Python reference model (1000 programs)
+        run: set -o pipefail; python3 tools/cosim.py --emu build/rv32emu --seeds 1000 --length 500 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Checker self-test (planted bug must be caught)
+        run: set -o pipefail; python3 tools/cosim.py --emu build/rv32emu --self-test | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Example execution trace
+        run: ./build/rv32emu --trace build/fib.trace --stats build/fib.elf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: programs-and-trace
+          path: |
+            build/*.elf
+            build/fib.trace
+
+  clang-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test with clang and strict warnings (-Wconversion, -Wshadow, -Wpedantic)
+        run: make all test CC=clang CFLAGS="-std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror"
